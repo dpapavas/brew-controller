@@ -1,0 +1,16 @@
+*~
+src/*.d
+src/*.o
+src/*.map
+src/*.elf
+src/*.hex
+src/*.ld.h
+src/loader
+src/filter
+src/pid
+src/*.ld
+kicad/
+spice/*.net
+spice/*.lib
+scheme/*.zo
+scheme/*.stl
