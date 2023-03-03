@@ -1,0 +1,5 @@
+(sym_lib_table
+  (lib (name "Teensy")(type "Legacy")(uri "/home/dimitris/source/brew/kicad/controller/teensy.lib")(options "")(descr ""))
+  (lib (name "MAX31865")(type "Legacy")(uri "/home/dimitris/source/brew/kicad/controller/MAX31865.lib")(options "")(descr ""))
+  (lib (name "Local")(type "KiCad")(uri "${KIPRJMOD}/Local.kicad_sym")(options "")(descr ""))
+)

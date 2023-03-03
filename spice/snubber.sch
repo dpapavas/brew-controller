@@ -1,0 +1,131 @@
+v 20220529 2
+C 40000 40000 0 0 0 title-B.sym
+C 50200 49300 1 0 0 resistor-1.sym
+{
+T 50500 49700 5 10 0 0 0 0 1
+device=RESISTOR
+T 50400 49600 5 10 1 1 0 0 1
+refdes=R1
+T 50700 49600 5 10 1 1 0 0 1
+value=2.2K
+}
+C 51300 49300 1 0 0 inductor-1.sym
+{
+T 51500 49800 5 10 0 0 0 0 1
+device=INDUCTOR
+T 51200 49600 5 10 1 1 0 0 1
+refdes=L1
+T 51500 50000 5 10 0 0 0 0 1
+symversion=0.1
+T 51500 49600 5 10 1 1 0 0 1
+value=10H
+}
+N 51100 49400 51300 49400 4
+C 53000 47100 1 0 0 vac-1.sym
+{
+T 53900 47950 5 10 1 1 180 0 1
+refdes=V3
+T 53700 47950 5 10 0 0 0 0 1
+device=vac
+T 53700 48150 5 10 0 0 0 0 1
+footprint=none
+T 55300 47650 5 10 1 1 180 0 1
+value=AC SINE(0 325 50)
+}
+C 53400 48300 1 90 0 resistor-1.sym
+{
+T 53000 48600 5 10 0 0 90 0 1
+device=RESISTOR
+T 53600 48500 5 10 1 1 90 0 1
+refdes=Rs1
+T 53600 48900 5 10 1 1 90 0 1
+value=2
+}
+C 53100 49200 1 0 0 generic-power.sym
+{
+T 53300 49450 5 10 1 1 0 3 1
+net=L:1
+}
+C 52200 48600 1 270 0 generic-power.sym
+{
+T 52450 48100 5 10 1 1 270 3 1
+net=L:1
+}
+C 52200 47100 1 270 0 generic-power.sym
+{
+T 52450 46900 5 10 1 1 270 3 1
+net=N:1
+}
+C 53500 47100 1 180 0 generic-power.sym
+{
+T 53300 46850 5 10 1 1 180 3 1
+net=N:1
+}
+C 48500 46500 1 0 0 spice-vc-switch-1.sym
+{
+T 50100 47200 5 8 0 0 0 0 1
+device=SPICE-VC-switch
+T 49400 47700 5 12 1 1 0 0 1
+refdes=S1
+T 49200 46650 5 8 1 1 0 0 1
+model-name=swmod
+}
+C 47200 46600 1 0 0 vdc-1.sym
+{
+T 47400 46250 5 10 1 1 0 0 1
+refdes=V1
+T 47900 47450 5 10 0 0 0 0 1
+device=VOLTAGE_SOURCE
+T 47900 47650 5 10 0 0 0 0 1
+footprint=none
+T 47400 46050 5 10 1 1 0 0 1
+value=DC PULSE(0V 2V 10m 1u 1u 18m 100m)
+}
+N 47500 47800 48700 47800 4
+N 48700 47800 48700 47500 4
+N 47500 46600 48700 46600 4
+N 48700 46600 48700 46900 4
+C 50000 46600 1 0 0 ground.sym
+C 47500 48900 1 0 0 spice-include-1.sym
+{
+T 47600 49200 5 10 0 1 0 0 1
+device=include
+T 47600 49300 5 10 1 1 0 0 1
+refdes=A1
+T 48000 49000 5 10 1 1 0 0 1
+file=snubber.inc
+}
+N 50200 47500 50200 49400 4
+N 50200 46900 52200 46900 4
+C 52200 49000 1 180 0 capacitor-1.sym
+{
+T 52000 48300 5 10 0 0 180 0 1
+device=CAPACITOR
+T 52000 48500 5 10 1 1 180 0 1
+refdes=C1
+T 52000 48100 5 10 0 0 180 0 1
+symversion=0.2
+T 51600 48500 5 10 1 1 180 0 1
+value=0.1u
+}
+C 51100 48900 1 180 0 resistor-1.sym
+{
+T 50800 48500 5 10 0 0 180 0 1
+device=RESISTOR
+T 50900 48600 5 10 1 1 180 0 1
+refdes=R2
+T 50600 48600 5 10 1 1 180 0 1
+value=390
+}
+N 51300 48800 51100 48800 4
+N 52200 48400 52200 49400 4
+C 50200 48200 1 90 0 generic-power.sym
+{
+T 49950 48700 5 10 1 1 90 3 1
+net=A:1
+}
+C 50900 48800 1 0 0 generic-power.sym
+{
+T 51400 49050 5 10 1 1 0 3 1
+net=B:1
+}
