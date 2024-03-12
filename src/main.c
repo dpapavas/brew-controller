@@ -194,6 +194,14 @@ static bool i2c_print_callback(void)
     return true;
 }
 
+static uint8_t setting_print_target;
+static bool setting_print_callback(void)
+{
+    uprintf("%d\n", setting_print_target);
+
+    return true;
+}
+
 static bool profile_print_callback(void)
 {
     print_profile();
@@ -280,15 +288,29 @@ static void usb_data_in(uint8_t *data, size_t n)
         break;
 
     case 's':
+#define SET_OR_GET(WHAT) {                                              \
+            char *e;                                                    \
+            double f = strtod(c, &e);                                   \
+                                                                        \
+            if (e == c) {                                               \
+                setting_print_target = get_## WHAT() * 100.0;           \
+                add_callback(setting_print_callback, tick_callbacks);   \
+            } else {                                                    \
+                set_## WHAT(f / 100.0);                                 \
+            }                                                           \
+                                                                        \
+            break;                                                      \
+        }
+
         switch(*(c++)) {
         case 'h':
         {
             switch(*(c++)) {
             case 'p':
-                set_heat_power(strtod(c, NULL) / 100.0);
+                SET_OR_GET(heat_power);
                 break;
             case 'd':
-                set_heat_delay(1.0 - strtod(c, NULL) / 100.0);
+                SET_OR_GET(heat_delay);
                 break;
             }
 
@@ -299,13 +321,13 @@ static void usb_data_in(uint8_t *data, size_t n)
         {
             switch(*(c++)) {
             case 'f':
-                set_pump_flow(strtod(c, NULL) / 100.0);
+                SET_OR_GET(pump_flow);
                 break;
             case 'p':
-                set_pump_power(strtod(c, NULL) / 100.0);
+                SET_OR_GET(pump_power);
                 break;
             case 'd':
-                set_pump_delay(1.0 - strtod(c, NULL) / 100.0);
+                SET_OR_GET(pump_delay);
                 break;
             }
 
@@ -313,6 +335,7 @@ static void usb_data_in(uint8_t *data, size_t n)
         }
         }
 
+#undef SET_OR_GET
         break;
 
     case 'c':
@@ -467,17 +490,12 @@ static void usb_data_in(uint8_t *data, size_t n)
         break;
 
     case 'p':
-        switch(*(c++)) {
-
-        case 's':
+        if (*c == ',') {
             if (read_profile(c)) {
                 add_callback(profile_stored_callback, tick_callbacks);
             }
-            break;
-
-        case 'p':
+        } else {
             add_callback(profile_print_callback, tick_callbacks);
-            break;
         }
 
         break;

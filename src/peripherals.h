@@ -23,12 +23,12 @@
 void reset_power(void);
 void set_heat_delay(double d);
 void set_heat_power(double P);
-double get_heat_duty(void);
+double get_heat_delay(void);
 double get_heat_power(void);
 void set_pump_delay(double d);
 void set_pump_power(double P);
 void set_pump_flow(double Q);
-double get_pump_duty(void);
+double get_pump_delay(void);
 double get_pump_power(void);
 double get_pump_flow(void);
 

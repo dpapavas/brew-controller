@@ -54,10 +54,9 @@ static struct profile profile = {
          .input_mode = ABSOLUTE,
          .output_mode = RATIOMETRIC,
          .ease_in = true,
-         .points = (double[][4]){
-             {0, NAN}, {20, 1}, {55, 1.25}, {INFINITY, 1.25}},
+         .points = (double[][4]){{0, NAN}, {INFINITY, 1}},
          .actions = NULL,
-         .sizes = {4, 0}
+         .sizes = {2, 0}
         }
     }
 };
@@ -363,6 +362,11 @@ static size_t reset_alloc(void)
 
 static char *alloc(size_t n)
 {
+    /* Round to multiple of 4 if necessary, to keep addresses
+     * aligned. */
+
+    n = (n + 3) & ~3;
+
     if (__section_program_p + n - __section_program_buffer > BUFFER_SIZE) {
         return NULL;
     }

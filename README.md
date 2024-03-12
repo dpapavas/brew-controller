@@ -2,7 +2,7 @@
 
 # Brew controller
 
-![Title](./doc/title.jpeg?raw=true)
+![Title](./doc/title_shot.jpg?raw=true)
 
 This is a controller module designed as an add-on to the Gaggia Classic espresso
 machine, although from a functional perspective it can be used with any "dumb"

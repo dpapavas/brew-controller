@@ -17,8 +17,9 @@
 #ifndef _USB_H_
 #define _USB_H_
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 void reset_usb(void);
 int is_usb_enumerated(void);

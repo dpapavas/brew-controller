@@ -138,9 +138,9 @@ static double calculate_delay(double P)
             P <= 0 || P >= 1 ? (P <= 0) : calculate_delay(P));          \
     }                                                                   \
                                                                         \
-    double get_## WHAT ##_duty()                                        \
+    double get_## WHAT ##_delay()                                       \
     {                                                                   \
-        return 1 - WHAT;                                                \
+        return WHAT;                                                    \
     }                                                                   \
                                                                         \
     double get_## WHAT ##_power()                                       \
