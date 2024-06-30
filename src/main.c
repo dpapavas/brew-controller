@@ -29,6 +29,8 @@
 #include "uassert.h"
 #include "usb.h"
 
+static bool update_display = true;
+
 #define K_U 0.125
 #define P_U 16.5
 
@@ -190,6 +192,14 @@ static uint8_t i2c_print_target;
 static bool i2c_print_callback(void)
 {
     uprintf("%d,%x,%b\n", i2c_print_target, i2c_print_target, i2c_print_target);
+
+    return true;
+}
+
+static uint8_t spi_print_target;
+static bool spi_print_callback(void)
+{
+    uprintf("%d,%x,%b\n", spi_print_target, spi_print_target, spi_print_target);
 
     return true;
 }
@@ -414,6 +424,66 @@ static void usb_data_in(uint8_t *data, size_t n)
 
                 break;
             }
+
+        case 's':
+            {
+                char *e;
+                uint8_t a[2];
+                int i;
+
+                for (i = 0; i < 2; i++) {
+                    a[i] = strtol(c, &e, 16);
+
+                    if (e == c || (*e != ',' && *e != '\0')) {
+                        break;
+                    }
+
+                    c = ++e;
+                }
+
+                /* Select the MAX31865; the display can't be operated
+                 * via simple SPI reads/writes. */
+
+                const uint32_t b = SPI_PUSHR_PCS(0) | SPI_PUSHR_CTAS(1);
+
+                if (i == 2) {
+                    /* Write register a[0] with value a[1]. */
+
+                    SPI0_SR |= SPI_SR_TFFF;
+                    WAIT_WHILE(!(SPI0_SR & SPI_SR_TFFF), 100);
+                    SPI0_PUSHR = b | SPI_PUSHR_CONT | a[0];
+
+                    SPI0_SR |= SPI_SR_TFFF;
+                    WAIT_WHILE(!(SPI0_SR & SPI_SR_TFFF), 100);
+                    SPI0_PUSHR = b | a[1];
+                } else if (i == 1) {
+                    /* Read register a[0]. */
+
+                    delay_us(500);
+
+                    SPI0_SR |= (SPI_SR_TFFF | SPI_SR_EOQF);
+                    WAIT_WHILE(!(SPI0_SR & SPI_SR_TFFF), 100);
+                    SPI0_PUSHR = (b | SPI_PUSHR_CONT | SPI_PUSHR_EOQ | a[0]);
+
+                    WAIT_WHILE(!(SPI0_SR & SPI_SR_EOQF), 100);
+                    SPI0_MCR |= SPI_MCR_CLR_RXF;
+                    SPI0_SR |= SPI_SR_EOQF;
+
+                    SPI0_SR |= SPI_SR_TFFF;
+                    WAIT_WHILE(!(SPI0_SR & SPI_SR_TFFF), 100);
+                    SPI0_PUSHR = b;
+
+                    SPI0_SR |= SPI_SR_RFDF;
+                    WAIT_WHILE(!(SPI0_SR & SPI_SR_RFDF), 100);
+
+                    spi_print_target = SPI0_POPR;
+                    add_callback(spi_print_callback, tick_callbacks);
+                }
+
+              error:
+
+                break;
+            }
         }
 
         break;
@@ -439,6 +509,12 @@ static void usb_data_in(uint8_t *data, size_t n)
             /* Toggle sensor power. */
 
             GPIOC_PTOR = PT(2);
+            break;
+
+        case 'd':
+            /* Toggle display update. */
+
+            update_display = !update_display;
             break;
 
         case 't':
@@ -708,7 +784,12 @@ int main(void)
 
     display("\x3f\a\4\x1d\2-  \v");
 
-    while (1) {
+    while (true) {
+        if (!update_display) {
+            delay_ms(100);
+            continue;
+        }
+
         static bool p_0;
         const bool p = fmod(get_time(), 0.5) < 0.25;
 

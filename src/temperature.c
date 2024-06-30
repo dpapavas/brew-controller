@@ -41,7 +41,7 @@ void run_temperature(bool run)
   error:
 }
 
-void read_temperature(bool run)
+void read_temperature()
 {
     TRANSMIT(0x80, SPI_PUSHR_CONT);
     TRANSMIT(0b10110001, 0);
@@ -127,7 +127,7 @@ __attribute__((interrupt ("IRQ"))) void portc_isr(void)
         T = NAN;
 
         if (is_usb_dtr()) {
-            /* Send the data register's read address and read the next two
+            /* Send the fault register's read address and read the next two
              * bytes of returned data. */
 
             SPI0_PUSHR = SPI_PUSHR_PCS(0) | SPI_PUSHR_CTAS(1) | SPI_PUSHR_CONT | 0x07;
