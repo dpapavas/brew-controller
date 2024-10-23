@@ -21,23 +21,23 @@
         (gamma operations) (gamma write))
 
 (define-option draft? #false)
-(set-curve-tolerance! (if draft? 1/15 1/50))
+(set-curve-tolerance! (if draft? 1/15 1/200))
 
 (define enclosure-height 115)
 (define enclosure-width 95)
-(define enclosure-depth 28)
+(define enclosure-depth 27)
 (define enclosure-face-depth 46)
-(define enclosure-face-inset 6)
+(define enclosure-face-inset 13/2)
 (define clip-angle 15)
 
 (define mount-boss-radius (+ 5/2 6/5))
-(define mount-boss-height 6)
+(define mount-boss-height 7)
 (define mount-plate-width 6/5)
 (define mount-gasket-width 1)
-(define mount-boss-elevation 1/2)
+(define mount-boss-elevation -1/2)
 
 (define wall-width 5/2)
-(define pcb-boss-height 3)
+(define pcb-boss-height 4)
 
 (print-note
  (show #f "Mount width: "
@@ -59,15 +59,15 @@
 
 (define (mount-plane s)
   (~> (plane 0 0 s 0)
-      (translate _ 0 0 enclosure-depth)
-      (rotate _ clip-angle 0)))
+      (rotate _ clip-angle 0)
+      (translate _ 0 0 enclosure-depth)))
 
-(define (bracket l h D d a staggered?)
+(define (bracket l h D staggered?)
   (let* ((c 1/5)
-         (r (+ (/ D 2) c))
+         (r (- D c))
          (r_1 (* 2/3 r)))
     (minkowski-sum
-     (square-pyramid (+ c c) (+ c c) c)
+     (hull (linear-extrusion (circle c) 0) (point 0 0 c))
      (apply
       union
 
@@ -91,30 +91,25 @@
           (apply difference _)
 
           (flush _ 1 0 -1)
-          (difference _  (flush (cuboid r_1 l r) 1 0 -1))
-          (translate _ (- r) 0 0))
+          (difference _  (flush (cuboid r_1 (- l r_1) r) 1 0 -1))
+          (translate _ (- (+ D c)) 0 0))
 
       (list-for ((s (list -1 1)))
-        (let ((place (λ (part)
-                       (~> part
-                           (flush-east _)
-                           (translate _ (- r) 0 0)))))
-          (~> (hull
-               (~> (cuboid (* 3/2 r) (+ r r) r)
-                   (flush-east _)
-                   (translate _ (/ r 2) 0 0))
-               (place (cuboid r_1 r_1 r)))
+        (let ((w 2)
+              (ε 1/10))
+          (~> (~> (rectangle r_1 r_1)
+                  (flush-east _)
+                  (translate _ (- (+ D c)) 0))
+              (apply union _ (list-for ((t (list -1/4 1/4)))
+                               (translate (circle r) 0 (* t r))))
+              (hull _)
+              (linear-extrusion _ w)
               (flush-bottom _)
-              (union _ (flush-bottom (cylinder r (- r a))))
-              (difference _ (~> (prism 6 r a)
-                                (rotate _ 90 2)
-                                (flush-top _)
-                                (translate _ 0 0 r)))
-              (difference _ (cylinder (+ (/ d 2) c) 50))
+              (difference _ (cylinder (+ (/ D 2) ε c) 50))
               (translate _ 0 (* 1/2 s l) 0))))))))
 
-(define-output psu-bracket (bracket 17 25 31/5 16/5 5/2 #false))
-(define-output controller-bracket (bracket 706/10 32 11/2 27/10 2 #true))
+(define-output psu-bracket (bracket 17 25 3 #false))
+(define-output controller-bracket (bracket 706/10 32 5/2 #true))
 
 (define (countersink D h outer?)
   (let ((D_eff (* D 11/10)))
@@ -176,36 +171,63 @@
 
         (clip _ (plane 0 0 -1 0)))))
 
-(define (side-bosses outer?)
-  (apply
-   union
+(define (add-base-fillet part r)
+  (union
+   part
+   (~> part
+       (clip _ (plane 0 0 1 -1/10))
+       (minkowski-sum _ (~> (rectangle r r)
+                            (flush _ -1 -1)
+                            (difference
+                             _
+                             (flush
+                              (scale (circular-sector r 90) -1 -1) -1 -1))
+                            (translate _ (- r) 0)
+                            (angular-extrusion _ r 360)
+                            (rotate _ 90 0)))
+       (translate _ 0 0 -1/10))))
 
-   (append
-    ;; Controller bosses
+(define (thread-boss D H L_1 L_2 outer?)
+  (let* ((c 1/2)
+         (r (* 1/2 (+ (/ (- D H) 2) c)))
+         (ε 3/20))
+    (flush-top
+     (if outer?
+         (cylinder (+ (/ H 2) ε) L_2)
+         (~> (hull
+              (flush-bottom (cylinder (/ D 2) L_1))
+              (flush-bottom (cylinder (+ (/ D 2) c) (- L_1 c))))
+             (apply
+              union
+              _
+              (list-for ((θ (list 0 90)))
+                (let ((w 1)
+                      (h (- (min L_1 5) (* 3/2 c))))
+                  (~> (hull (flush-bottom (cuboid D w h))
+                            (flush-bottom (cuboid (+ D h h) w r)))
+                      (minkowski-sum _ (square-pyramid c c (/ c 2)))
+                      (rotate _ θ 2)))))
 
-    (list-for ((s (list -1/2 1/2))
-               (t (list -1/2 1/2)))
-      (~> (countersink 5/2 pcb-boss-height outer?)
-          (translate _ (* s 706/10) (* t 371/10) (- pcb-boss-height))
-          (place-controller _)))
+             (add-base-fillet _ r))))))
 
-    ;; PSU bosses
+(define (display-boss outer?)
+  (if (not outer?)
+      (thread-boss 27/5 4 2 0 #false)
 
-    (list-for ((s (list -1/2 1/2))
-               (t (list -1/2 1/2)))
-      (~> (countersink 3 pcb-boss-height outer?)
-          (translate _ (* s 58) (* t 17) (- pcb-boss-height))
-          (place-psu _)))
-
-    ;; MAX31865 bosses
-
-    (list-for ((s (list -1/2 1/2)))
-      (~> (countersink 3 (+ pcb-boss-height 8/5 11) outer?)
-          (translate _
-                     (- 35/2 767/20 (* s 81/4))
-                     (+ 431/20 253/10 -5)
-                     (- pcb-boss-height))
-          (place-controller _))))))
+      (translate
+       (union
+        (~> (list-for ((u (list 0 1)))
+              (translate
+               (regular-polygon 6 13/5) 0 (* -1 u (+ 12/5 9/2))))
+            (apply hull _)
+            (linear-extrusion _ 17/10))
+        (~> (list-for ((u (list 0 1)))
+              (translate (circle 5/4) 0 (* -1 u 5)))
+            (apply hull _)
+            (linear-extrusion _ 0 5))
+        (~> (cuboid 6 6 10)
+            (flush-bottom _)
+            (translate _ 0 -10 0))) 0 0 -2)))
 
 (define-output nut
   (~> (prism 6 127/20 5)
@@ -271,9 +293,9 @@
          (apply union
                 (list-for ((s (list -1 1)))
                   (~> (cuboid 46 10 20)
-                      (flush _ 1 s -1)
+                      (flush _ 0 s -1)
                       (translate _
-                                 (- 757/20 0) (* -1 s (+ 431/20 1/2)) 8/5))))))
+                                 (- 61/4 0) (* -1 s 431/20) (+ 8/5 1)))))))
 
 (define-output psu
   (flush-bottom (cuboid 65 25 20)))
@@ -306,7 +328,7 @@
    (flush-bottom (cylinder 7/2 13/2))
    (translate (spline 0) 0 0 7)
    (translate (flush-top (cuboid 33 16 8/5)) (- 33/2 12) 0 -7)
-   (translate (flush-bottom (cuboid 16 13 5/2)) (+ 33 -12 16/2 -5/2) 0 -7)))
+   (translate (flush-top (cuboid 5/2 13 16)) (+ 33 -12 -5/2) 0 (+ -7 -8/5))))
 
 (define knob-radius 14)
 (define knob-width 2)
@@ -373,7 +395,7 @@
                _
                (list-for ((s (iota 52)))
                  (transform
-                  (linear-extrusion (rotate(regular-polygon 3 3/5) -30)
+                  (linear-extrusion (rotate (regular-polygon 3 3/5) -30)
                                     0 (+ knob-height knob-width))
                   (translation (+ knob-radius knob-width δ) 0 0)
                   (rotation (* 360/52 s) 2))))
@@ -407,7 +429,7 @@
 (define (place-controller part)
    (transform part
               (rotation 90 2)
-              (translation (- enclosure-height 35) 42 pcb-boss-height)))
+              (translation (- enclosure-height 35) 44 pcb-boss-height)))
 
 (define (place-port part)
   (~> part
@@ -415,11 +437,9 @@
       (place-controller _)))
 
 (define (place-psu part)
-   (transform part
-              (rotation 90 2)
-              (translation (- enclosure-height 98)
-                           (/ enclosure-width 2)
-                           pcb-boss-height)))
+   (~> part
+       (translate _ (- 35/2 -58/2 767/20 81/8) 63 1)
+       (place-controller _)))
 
 (define (place-display part)
   (~> part
@@ -429,34 +449,34 @@
                  enclosure-width
                  (+ (/ enclosure-face-depth 2) (+ -37/2 28/2 1)))))
 
-(define (place-display-cutout part)
+(define (place-display-boss part)
+  (list-for ((θ (list 0 180))
+             (s (list -1/2 1/2)))
+    (~> part
+        (rotate _  180 1)
+        (translate _ (* s 79/2) 16 -2)
+        (rotate _  θ 2)
+        (place-display _))))
+
+(define (place-display-opening part)
   (~> part
       (translate _ 0 (+ -37/2 28/2 1) 0)
       (place-display _)))
 
-(define (place-display-boss part)
-  (apply
-   union
-   (list-for ((s (list -1/2 1/2))
-              (t (list -1/2 1/2)))
-     (~> part
-         (translate _ (* s 79/2) (* t 32) 0)
-         (place-display _)))))
-
 (define (place-mount-boss part x)
   (list-for ((s (list 0 1))
              (t (list 0 1)))
-    (let* ((δ (λ (s)
-               (* (- (* s 2) 1)
-                  (- (/ wall-width 2) mount-boss-radius))))
-           (twδ (+ (* t (- enclosure-width enclosure-face-inset)) (δ t))))
+    (let* ((δ (λ (x ε)
+               (* (- (* x 2) 1)
+                  (- (/ wall-width 2) mount-boss-radius ε))))
+           (twδ (+ (* t (- enclosure-width enclosure-face-inset)) (δ t 0))))
       (~> part
           (translate _ 0 0 (+ mount-plate-width
                               mount-gasket-width
                               mount-boss-elevation))
           (rotate _ clip-angle 0)
           (translate _
-                     (+ (* s enclosure-height) (* (δ s) x))
+                     (+ (* s enclosure-height) (* (δ s 0) x))
                      twδ
                      (+ (* (+ twδ (* 3/2 wall-width)) (tan-degrees clip-angle))
                         enclosure-depth))))))
@@ -464,16 +484,31 @@
 (define (place-encoder part)
   (~> part
       (rotate _ -90 0)
-      (translate _
-                 (* 3/5 (- enclosure-height 5 89/2))
-                 (+ enclosure-width -3)
-                 (/ enclosure-face-depth 2))))
+      (translate _ 39 (+ enclosure-width -3) (/ enclosure-face-depth 2))))
+
+(define-output display-gasket
+  (~> (cuboid 45 38 3)
+      (translate _ 0 -1/2 0)
+      (minkowski-sum _ (linear-extrusion (regular-polygon 4 4/5) 0))
+      (flush-top _)
+      (clip _ (transform
+               (plane 0 0 1 0)
+               (translation 0 0 13)
+               (rotation -45 0)))
+
+      (place-display _)
+      (difference _ (minkowski-sum
+                     (apply cuboid (make-list 3 2/5))
+                     (apply
+                      union
+                      (place-display display)
+                      (place-display-boss (display-boss #false)))))))
 
 (define-output pcbs
   (union
    (place-psu psu)
    (place-controller controller)
-   (place-display (translate display 0 0 -2/5))
+   (place-display (translate display 0 0 -1/10))
    (place-encoder (rotate encoder 90 2))))
 
 (define (plate w z)
@@ -481,13 +516,18 @@
               (+ (/ enclosure-width (cos-degrees clip-angle)) 20)
               w)
       (flush _ -1 -1 -1)
-      (translate _ -10 (* -10 (tan-degrees clip-angle)) (+ enclosure-depth z))
-      (rotate _ clip-angle 0)))
+      (translate _ -10 -10 0)
+      (rotate _ clip-angle 0)
+      (translate _ 0 0 (+ enclosure-depth z))))
 
 (define (usb-cutout-face δ)
   (let* ((d 3)
-         (x (* 2 (+ d δ))))
-    (rectangle (+ 10 x) (+ 5 x))))
+         (c 1/2)
+         (x (* 2 (- d c))))
+    (offset
+     (minkowski-sum
+      (regular-polygon 4 c)
+      (rectangle (+ 10 x) (+ 5 x))) δ)))
 
 (define-output usb-plug
   (~> (let* ((l (+ 35 88/5 -767/20))
@@ -506,25 +546,49 @@
       (minkowski-sum _ (linear-extrusion (regular-polygon 4 1) 0))))
 
 (define-output enclosure
-  (~> (cuboid enclosure-height
-              enclosure-width
-              (* 2 enclosure-depth))
+  (~> (if outer?
+          (cuboid enclosure-height
+                  enclosure-width
+                  (* 3 enclosure-depth))
+
+          ;; Apply a bit of chamfering to the inner edges.
+
+          (let* ((c 1)
+                 (cc (+ c c)))
+            (~> (cuboid (- enclosure-height cc)
+                        (- enclosure-width cc)
+                        100)
+                (minkowski-sum _ (hull
+                                  (linear-extrusion (rectangle cc cc) 0)
+                                  (point 0 0 (- c)))))))
+
       (flush _ -1 -1 -1)
 
-      ;; Front face cuts
+      (clip _ (transform
+               (plane 0 0 -1 0)
+               (rotation -45 0)
+               (translation 0 0 5)))
+
+      ;; Front face cut
 
       (difference
-       _
-       (union
-        (~> (cuboid enclosure-height 50 50)
-            (flush _ -1 -1 -1)
-            (clip _ (~> (plane 0 0 -1 0)
-                        (rotate _ -45 0)
-                        (translate _ 0 enclosure-face-inset 0)))
-            (translate _
-                       0
-                       (- enclosure-width enclosure-face-inset)
-                       enclosure-face-depth))))
+         _
+         (let* ((θ (if outer? 90 60))
+                (s (sin-degrees θ))
+                (c (cos-degrees θ))
+                (x (+ enclosure-depth
+                      (* (- enclosure-width enclosure-face-inset)
+                         (tan-degrees clip-angle))
+                      (- enclosure-face-depth)))
+                (y (- enclosure-face-inset))
+                (r (/ (+ (* x x) (* y y)) (* 2 (+ (* x s) (* y c))))))
+           (print-note r)
+           (~> (cylinder r enclosure-height)
+               (flush-bottom _)
+               (rotate _ 90 1)
+               (translate _ 0
+                          (+ enclosure-width (* r c))
+                          (+ enclosure-face-depth (* r s))))))
 
       ;; Encoder pocket
 
@@ -546,20 +610,62 @@
                         (place-port _)))
 
       (when~> _ outer? (minkowski-sum _ chamfer-kernel))
-      (difference _ (side-bosses outer?))
+      (apply
+       difference
+       _
+       (append
+        ;; Controller bosses
+
+        (list-for ((s (list -1/2 1/2))
+                   (t (list -1/2 1/2)))
+          (~> (thread-boss 32/5 17/5 4 5 outer?)
+              (rotate _ 45 2)
+              (translate _ (* s 706/10) (* t 371/10) 0)
+              (place-controller _)))
+
+        ;; PSU bosses
+
+        (list-for ((s (list -1/2 1/2))
+                   (t (list -1/2 1/2)))
+          (~> (thread-boss 36/5 4 5 5 outer?)
+              (rotate _ 45 2)
+              (translate _ (* s 58) (* t 17) 0)
+              (place-psu _)))
+
+        ;; MAX31865 bosses
+
+        (list-for ((s (list -1/2 1/2)))
+          (~> (thread-boss 36/5 4 (+ pcb-boss-height 8/5 11) 6 outer?)
+              (translate _
+                         (- 35/2 767/20 (* s 81/4))
+                         (+ 431/20 253/10 -5)
+                         (+ 8/5 11))
+              (place-controller _)))
+
+        ;; Display bosses
+
+        (place-display-boss (display-boss outer?))))
+
       (when~> _
-              ;; Display opening cutout
+              ;; Display cutouts
 
               outer?
-              (difference _ (~> (rectangle 28 28)
-                                (extrusion
-                                 _
-                                 (translation 0 0 0)
-                                 (translation 0 0 (/ wall-width 2))
-                                 (transformation-append
-                                  (translation 0 0 (+ (/ wall-width 2) 14))
-                                  (scaling 2 2 2)))
-                                (place-display-cutout _)))
+              (difference _
+
+                          (~> (rectangle 28 28)
+                              (extrusion
+                               _
+                               (translation 0 0 0)
+                               (translation 0 0 (* wall-width 3/5))
+                               (transformation-append
+                                (translation 0 0 (+ (* wall-width 3/5) 14))
+                                (scaling 2 2 2)))
+                              (place-display-opening _))
+
+                          (~> (cuboid 171/5 38 10)
+                              (translate _ 0 -1/2 0)
+                              (flush-top _)
+                              (place-display _)))
 
               ;; Encoder opening cutouts
 
@@ -578,6 +684,8 @@
 
       (difference
        _
+       ;; Front face fluting
+
        (difference
         (apply
          union
@@ -589,9 +697,8 @@
                (translate _
                           (/ enclosure-height 2)
                           (+ enclosure-width wall-width)
-                          (+ (* 2 s) 1))
+                          (+ (* 2 s) 1)))))
 
-               )))
         (apply hull
                (list-for ((x (list 5 -5)))
                  (let* ((l 2)
@@ -607,49 +714,24 @@
                                     (+ enclosure-width wall-width x)
                                     0))
                      (~> (linear-extrusion (rectangle rr rr) 0)
-                         (place-display-cutout _)
+                         (place-display-opening _)
                          (translate _ (- l x) (+ wall-width x) 0)))))))))
 
 
-      ;; Venting grilles
+      ;; Ventilation grilles
 
       (apply difference
              _
-             (list-for ((t (list -20 128))
-                        (s (iota 5)))
-               (let ((w 4)
+             (list-for ((t (list -25 131))
+                        (s (iota 10 -9/2)))
+               (let ((w 13/5)
+                     (δ 11/5)
                      (h (* 2 (+ 20 8/5))))
-                 (~> (hull
-                      (cuboid w 50 h)
-                      (cuboid (/ w 2) (+ 50 w) (+ h w)))
+                 (~> (extrusion (rectangle h 50) (rotation 90 1))
+                     (minkowski-sum _ (sphere (/ w 2)))
                      (flush-north _)
-                     (translate _ (- (* 2 s w) 4) t 0)
+                     (translate _ (+ 61/4 (* s (+ w δ))) t 0)
                      (place-controller _)))))
-
-      ;; Display bosses
-
-      (union _ (place-display-boss
-                (extrusion (circle 9/2)
-                           (translation 0 0 0)
-                           (transformation-append
-                            (translation 0 0 -2)
-                            (scaling 2/3 2/3 2/3)))))
-
-      (difference _ (~> (list-for ((s (list 0 1)))
-                          (translate (regular-polygon 6 13/5)
-                                     0 (* s (- (+ 12/5 9/2)))))
-                        (apply hull _)
-                        (linear-extrusion _ 8/5)
-                        (translate _ 0 0 2/5)
-                        (union _ (flush-top (prism 4 3/2 5)))
-                        (place-display-boss _)))
-
-      ;; Display boss cuts
-
-      (difference _ (~> (cuboid 171/5 40 10)
-                        (translate _ 0 -1/2 0)
-                        (flush-top _)
-                        (place-display _)))
 
       (clip _ (mount-plane 1))
 
@@ -695,13 +777,15 @@
                                          (- mount-boss-height)
                                          (- mount-boss-height))
                        (place-mount-boss _ 1))
-                   (~> (point 0 0 (* -15/8 mount-boss-height))
+                   (~> (extrusion
+                        (circle (/ wall-width 2))
+                        (translation 0 0 (* -15/8 mount-boss-height)))
                        (place-mount-boss _ -1/2))))))
 
       (difference _ (apply
                      union
-                     (~> (thread-cutout 5 1/2 6 #true)
-                         (rotate _ 180 0)
+                     (~> (cylinder 11/5 67/10)
+                         (flush-top _)
                          (place-mount-boss _ 1))))))
 
 (define-output mount-plate
@@ -710,7 +794,7 @@
          (place-mount-boss (cylinder (+ mount-boss-radius 1/5) 50) 1)))
 
 (define-output mount-gasket
-  (let ((r 1)
+  (let ((r 7/5)
         (d 3/10) ; depth of mating inset
         (ε 1/5)  ; dilation of mating inset
         (c 2/5))
@@ -723,10 +807,10 @@
                  (λ (h z)
                    (hull
                     (flush
-                     (cylinder (+ r (- c) -1/100)
+                     (cylinder (- r c 1/100)
                                (* h mount-gasket-width)) 0 0 z)
                     (flush
-                     (cylinder (+ r -1/100)
+                     (cylinder (- r 1/100)
                                (- (* h mount-gasket-width) c)) 0 0 z)))))
             (difference
              (union
@@ -734,7 +818,7 @@
                (kernel 3 1)
                (difference
                 (hull part)
-                (minkowski-sum part (linear-extrusion (circle 3) 0))))
+                (minkowski-sum part (cylinder 3 1))))
               (minkowski-sum (hull part) (rotate (kernel 1 -1) 180 0)))
              (minkowski-sum part
                             (translate (cylinder ε (+ d d))
@@ -771,16 +855,17 @@
               (rotate _ 90 0)
               (place-port _))
           (~> mount-washer
-              (translate _ 0 0 (- mount-boss-elevation))
+              (translate _ 0 0 mount-boss-elevation)
               (place-mount-boss _ 1)
               (apply union _)))
 
    (union pcbs
+          display-gasket
           (~> nut
               (translate _ 0 0 wall-width)
               (place-encoder _))
-          #;mount-gasket
-          #;mount-plate)))
+          mount-gasket
+          mount-plate)))
 
 (define-output section
   (clip assembly (plane -1 0 0 depth)))
