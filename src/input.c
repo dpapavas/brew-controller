@@ -44,10 +44,14 @@ void reset_input(void)
     PORTB_PCR16 = (PORT_PCR_MUX(1) | PORT_PCR_IRQC(10) | PORT_PCR_PFE
                    | PORT_PCR_SRE | PORT_PCR_PE | PORT_PCR_PS);
 
+    /* The encoder may have pull-ups built in, but we enable them
+     * anyway, to ensure no false clicks are detected when the decoder
+     * isn't connected. */
+
     /* Encoder button */
 
     PORTD_PCR4 = (PORT_PCR_MUX(1) | PORT_PCR_IRQC(10) | PORT_PCR_PFE
-                  | PORT_PCR_SRE);
+                  | PORT_PCR_SRE | PORT_PCR_PE | PORT_PCR_PS);
 
     /* If the button is pressed during boot, wait for USB attachment
      * and enter programming mode. */
@@ -62,9 +66,9 @@ void reset_input(void)
     /* Encoder pulses */
 
     PORTD_PCR2 = (PORT_PCR_MUX(1) | PORT_PCR_IRQC(11) | PORT_PCR_PFE
-                  | PORT_PCR_SRE);
+                  | PORT_PCR_SRE | PORT_PCR_PE | PORT_PCR_PS);
     PORTD_PCR3 = (PORT_PCR_MUX(1) | PORT_PCR_IRQC(11) | PORT_PCR_PFE
-                  | PORT_PCR_SRE);
+                  | PORT_PCR_SRE | PORT_PCR_PE | PORT_PCR_PS);
 
     /* PIT timers are clocked by the bus clock.  For an interval of x
      * seconds the needed LDVAL is x * 48000000. */
