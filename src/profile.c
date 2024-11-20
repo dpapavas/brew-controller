@@ -33,9 +33,55 @@
                  "ap;qf;(0,1);(9.5,1);,"                \
                  "rt;ap;(0,);(1,9);bbbb")
 
+extern unsigned long __scratch_start, __scratch_end;
+
 static struct profile profile;
+static struct profile_log_entry *profile_log_cursor =
+    (struct profile_log_entry *)&__scratch_start;
 
 /* Profile execution */
+
+static inline void log_profile_execution(
+    uint8_t phase, uint8_t stage, __fp16 x, __fp16 y)
+{
+    if (profile_log_cursor + 1 > (struct profile_log_entry *)&__scratch_end) {
+        return;
+    }
+
+    profile_log_cursor->phase = phase;
+    profile_log_cursor->stage = stage;
+    profile_log_cursor->x = x;
+    profile_log_cursor->y = y;
+    profile_log_cursor->pressure = pressure_filter.y;
+    profile_log_cursor->flow = get_flow();
+
+    if (isnan(profile_log_cursor->flow)) {
+        profile_log_cursor->flow = 0;
+    }
+
+    profile_log_cursor->volume = get_volume();
+    profile_log_cursor->mass = mass_filter.y;
+
+    profile_log_cursor++;
+}
+
+void print_profile_log(void)
+{
+    for (struct profile_log_entry *p
+             = (struct profile_log_entry *)&__scratch_start;
+         p < profile_log_cursor;
+         p++) {
+        uprintf("%d, %d, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f\n",
+                p->phase,
+                p->stage,
+                (double)p->x,
+                (double)p->y,
+                (double)p->pressure,
+                (double)p->flow,
+                (double)p->volume,
+                (double)p->mass);
+    }
+}
 
 static inline double evaluate_profile_at(const double *P_i, double x)
 {
@@ -233,6 +279,8 @@ static bool profiling_callback(void)
                 }
             }
 
+            log_profile_execution(cursor, i, x, NAN);
+
             initialize_stage = true;
             continue;
         }
@@ -241,6 +289,8 @@ static bool profiling_callback(void)
 
         double y = evaluate_profile_at(P[i], x);
         adjust_value(&y, output_reference, stage->output_mode, true);
+
+        log_profile_execution(cursor, i, x, y);
 
         switch (stage->output) {
         case POWER_OUTPUT:
@@ -287,6 +337,8 @@ static bool brew_callback(bool down)
 
         pressure_pid.integral = 0;
         flow_pid.integral = 0;
+
+        profile_log_cursor = (struct profile_log_entry *)&__scratch_start;
 
         if (enabled) {
             initialize_stage = true;

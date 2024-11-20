@@ -504,8 +504,9 @@ The following commands are available:
 * `z[f|m]`: Resets the calculated volume (`f`) to zero, or tares mass
     (`m`).
 
-* `p[,STAGE,...]`: Without any arguments, a plain `p` prints the current
-    programmed brew profile, otherwise programs the new brew profile.
+* `p[l|,STAGE,...]`: Without any arguments, a plain `p` prints the current
+    programmed brew profile.  When `l` is specified the last captured profile
+    log is printed, otherwise programs the new brew profile.
 
     The program, consists of a set of stages, separated by commas.  Each stage
     is a separate phase of the brew process, where some output variable, which

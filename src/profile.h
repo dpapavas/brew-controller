@@ -58,6 +58,11 @@ struct profile {
     } *stages;
 };
 
+struct profile_log_entry {
+    uint8_t phase, stage;
+    __fp16 x, y, pressure, flow, volume, mass;
+};
+
 void reset_profile(void);
 void enable_profile(bool enable);
 double get_shot_time(void);
@@ -66,6 +71,7 @@ size_t get_stages(void);
 
 const struct profile *get_profile(void);
 void print_profile(void);
+void print_profile_log(void);
 bool read_profile(const char *s);
 
 #endif

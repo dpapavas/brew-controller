@@ -219,6 +219,13 @@ static bool profile_print_callback(void)
     return true;
 }
 
+static bool profile_log_print_callback(void)
+{
+    print_profile_log();
+
+    return true;
+}
+
 static bool profile_stored_callback(void)
 {
     const struct profile *profile = get_profile();
@@ -566,12 +573,19 @@ static void usb_data_in(uint8_t *data, size_t n)
         break;
 
     case 'p':
-        if (*c == ',') {
+        switch (*c) {
+        case ',':
             if (read_profile(c)) {
                 add_callback(profile_stored_callback, tick_callbacks);
             }
-        } else {
+
+            break;
+        case 'l':
+            add_callback(profile_log_print_callback, tick_callbacks);
+            break;
+        default:
             add_callback(profile_print_callback, tick_callbacks);
+            break;
         }
 
         break;

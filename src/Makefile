@@ -2,7 +2,7 @@ TEENSY30 ?=
 TARGET = main
 
 OPT = -O2
-MFLAGS = -mcpu=cortex-m4 -mtune=cortex-m4 -mthumb -mfloat-abi=soft
+MFLAGS = -mcpu=cortex-m4 -mtune=cortex-m4 -mthumb -mfloat-abi=soft -mfp16-format=ieee
 CPPFLAGS = -I. -D_GNU_SOURCE
 CFLAGS = -Wall -Wextra -Wshadow -Wdouble-promotion -Wno-unused-parameter \
 	 -Wno-misleading-indentation -Wno-missing-field-initializers \
