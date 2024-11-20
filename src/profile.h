@@ -25,6 +25,7 @@ struct profile {
 
     struct stage {
         enum {
+            FLOW_INPUT,
             PRESSURE_INPUT,
             TIME_INPUT,
             VOLUME_INPUT,
@@ -43,10 +44,11 @@ struct profile {
             RELATIVE,
         } input_mode, output_mode;
 
-        bool ease_in;
+        bool ease_input, ease_output;
         double (*points)[4];
 
         enum action {
+            BACK,
             RESET_VOLUME,
             RESET_TIME,
             RESET_MASS,

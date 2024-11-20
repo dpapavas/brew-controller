@@ -511,21 +511,23 @@ The following commands are available:
     is a separate phase of the brew process, where some output variable, which
     can be either flow (`f`), pressure (`p`) or pump power (`w`) is controlled
     based on some measured input variable, either shot time (`t`), current
-    pressure (`p`), current volume (`v`), or current mass (`m`).  Conecptually,
-    it can be though of as a graph, with the input (measured) variable on the x
-    axis and the output (controlled) variable on the y axis.  Both axes can be
-    specified in one of three modes: absolute (`a`) where the value is given in
-    absolute terms, relative (`r`) where the value is given ralative to what it
-    was at the beginning of the phase and ratiometric (`q`) where it is
-    specified as a multiple of what it was at the beginninng of the phase.
+    pressure (`p`), current flow (`f`), current volume (`v`), or current mass
+    (`m`).  Conceptually, it can be though of as a graph, with the input
+    (measured) variable on the x axis and the output (controlled) variable on
+    the y axis.  Both axes can be specified in one of three modes: absolute
+    (`a`) where the value is given in absolute terms, relative (`r`) where the
+    value is given relative to what it was at the beginning of the phase and
+    ratiometric (`q`) where it is specified as a multiple of what it was at the
+    beginning of the phase.
 
     Each phase is specified as `input;output;point1;point2;...;commands`, where
     `input` and `output` each consist of two letters, specifying the input and
-    ouput mode and variable, points are specified as `(x,y)` and commands can be
-    one or more letters indicating that the shot time (`t`), volume (`v`), or
-    mass (`m`) should be reset at the end of the phase.  The output value of the
-    first point on each phase may be absent, indicating that the current value
-    should be used.
+    output mode and variable, points are specified as `(x,y)` and commands can be
+    one or more letters indicating that the shot time (`t`), volume (`v`), and
+    mass (`m`) should be reset at the end of the phase, or `b`, which moves back
+    one section, allowing unconditional looping.  Both the input and output
+    values of the first point on each phase may be absent, indicating that the
+    current value should be used.
 
     Consider the following program for example:
 

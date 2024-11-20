@@ -26,40 +26,14 @@
 #include "time.h"
 #include "usb.h"
 
-static struct profile profile = {
-    .size = 3,
-    .stages = (struct stage []) {
-        {.input = PRESSURE_INPUT,
-         .output = FLOW_OUTPUT,
-         .input_mode = ABSOLUTE,
-         .output_mode = ABSOLUTE,
-         .ease_in = false,
-         .points = (double[][4]){{0, 3}, {4, 3}},
-         .actions = (enum action []){RESET_VOLUME},
-         .sizes = {2, 1}
-        },
+#define PROFILE (",ap;af;(0,3);(4,3);v,"                \
+                 "rt;ap;(0,);(1,0);(30,0);(33,9);,"     \
+                 "ap;ap;(,9);(9,9);,"                   \
+                 "af;ap;(0,9);(1.8,9);,"                \
+                 "ap;qf;(0,1);(9.5,1);,"                \
+                 "rt;ap;(0,);(1,9);bbbb")
 
-        {.input = TIME_INPUT,
-         .output = PRESSURE_OUTPUT,
-         .input_mode = RELATIVE,
-         .output_mode = ABSOLUTE,
-         .ease_in = true,
-         .points = (double[][4]){{0, NAN}, {1, 0}, {30, 0}, {33, 9}, {40, 9}},
-         .actions = NULL,
-         .sizes = {5, 0}
-        },
-
-        {.input = VOLUME_INPUT,
-         .output = FLOW_OUTPUT,
-         .input_mode = ABSOLUTE,
-         .output_mode = RATIOMETRIC,
-         .ease_in = true,
-         .points = (double[][4]){{0, NAN}, {INFINITY, 1}},
-         .actions = NULL,
-         .sizes = {2, 0}
-        }
-    }
-};
+static struct profile profile;
 
 /* Profile execution */
 
@@ -143,6 +117,15 @@ static bool profiling_callback(void)
             x = get_time() - start;
             break;
 
+        case FLOW_INPUT:
+            x = get_flow();
+
+            if (isnan(x)) {
+                x = 0;
+            }
+
+            break;
+
         case PRESSURE_INPUT:
             x = pressure_filter.y;
             break;
@@ -167,14 +150,31 @@ static bool profiling_callback(void)
                 break;
 
             case PRESSURE_OUTPUT:
-                pressure_pid.integral = 0;
                 output_reference = pressure_filter.y;
+
+                back_calculate_pid(
+                    &pressure_pid,
+                    pressure_filter.dy / pressure_filter.dt,
+                    get_pump_flow());
 
                 break;
 
             case FLOW_OUTPUT:
-                flow_pid.integral = 0;
                 output_reference = get_flow();
+
+                if (isnan(output_reference)) {
+                    output_reference = 0;
+                }
+
+                {
+                    double dy_dt = get_flow_derivative();
+
+                    if (isnan(dy_dt)) {
+                        dy_dt = 0;
+                    }
+
+                    back_calculate_pid(&flow_pid, dy_dt, get_pump_flow());
+                }
 
                 break;
             }
@@ -182,32 +182,19 @@ static bool profiling_callback(void)
             /* Potentially fill in a missing initial value, ensuring
              * continuity wrt the previous stage. */
 
-            if (stage->ease_in) {
-                switch (stage->output) {
-                case PRESSURE_OUTPUT:
-                    P[0][1] = pressure_filter.y;
-
-                    back_calculate_pid(
-                        &pressure_pid,
-                        pressure_filter.dy / pressure_filter.dt,
-                        get_pump_flow());
-
-                    break;
-                case FLOW_OUTPUT:
-                    P[0][1] = get_flow();
-
-                    back_calculate_pid(
-                        &flow_pid, get_flow_derivative(),
-                        get_pump_flow());
-
-                    break;
-                case POWER_OUTPUT:
-                    P[0][1] = get_pump_flow();
-                    break;
+            if (stage->ease_input || stage->ease_output) {
+                if (stage->ease_input) {
+                    P[0][0] = input_reference;
+                    adjust_value(
+                        &P[0][0], input_reference, stage->input_mode, false);
                 }
 
-                adjust_value(
-                    &P[0][1], output_reference, stage->output_mode, false);
+                if (stage->ease_output) {
+                    P[0][1] = output_reference;
+                    adjust_value(
+                        &P[0][1], output_reference, stage->output_mode, false);
+                }
+
                 interpolate_profile_at(P, 0);
             }
 
@@ -220,13 +207,20 @@ static bool profiling_callback(void)
 
         size_t i;
 
-        for (i = 0; i < stage->sizes[0] && P[i + 1][0] <= x; i++);
+        {
+            const bool p = P[0][0] < P[1][0];
+            for (i = 0; (i + 1 < stage->sizes[0]
+                         && (p ? P[i + 1][0] <= x : P[i + 1][0] >= x)); i++);
+        }
 
-        if (i == stage->sizes[0]) {
+        if (i + 1 == stage->sizes[0]) {
             /* We've finished the current stage. */
 
             for (size_t j = 0; j < stage->sizes[1]; j++) {
                 switch (stage->actions[j]) {
+                case BACK:
+                    cursor--;
+                    break;
                 case RESET_VOLUME:
                     tare_flow();
                     break;
@@ -309,6 +303,7 @@ static bool brew_callback(bool down)
 
 void reset_profile(void)
 {
+    read_profile(PROFILE);
     interpolate_profile();
     add_callback(brew_callback, panel_callbacks);
 }
@@ -439,6 +434,7 @@ static size_t read_stage(size_t i, struct stage **stages)
     READ_CHAR(c);
 
     switch(c) {
+    case 'f': stage.input = FLOW_INPUT; break;
     case 'p': stage.input = PRESSURE_INPUT; break;
     case 't': stage.input = TIME_INPUT; break;
     case 'v': stage.input = VOLUME_INPUT; break;
@@ -492,8 +488,15 @@ static size_t read_stage(size_t i, struct stage **stages)
         stage.points[j][1] = y;
 
         if (j == 0) {
-            stage.ease_in = isnan(y);
+            stage.ease_input = isnan(x);
+            stage.ease_output = isnan(y);
         }
+    }
+
+    /* Need at least one segment, i.e. pair of points. */
+
+    if (j < 2) {
+        ERROR();
     }
 
     stage.sizes[0] = j;
@@ -506,6 +509,7 @@ static size_t read_stage(size_t i, struct stage **stages)
         READ_CHAR(c);
 
         switch(c) {
+        case 'b': stage.actions[j] = BACK; break;
         case 'v': stage.actions[j] = RESET_VOLUME; break;
         case 't': stage.actions[j] = RESET_TIME; break;
         case 'm': stage.actions[j] = RESET_MASS; break;
@@ -579,6 +583,7 @@ void print_profile(void)
         }
 
         switch(stage->input) {
+        case FLOW_INPUT: uprintf("f"); break;
         case PRESSURE_INPUT: uprintf("p"); break;
         case TIME_INPUT: uprintf("t"); break;
         case VOLUME_INPUT: uprintf("v"); break;
@@ -606,19 +611,26 @@ void print_profile(void)
         /* Points */
 
         for (size_t j = 0; j < stage->sizes[0]; j++) {
-            if (stage->ease_in && j == 0) {
-                uprintf("(%f,);", (double)stage->points[j][0]);
-            } else {
-                uprintf(
-                    "(%f,%f);",
-                    (double)stage->points[j][0], (double)stage->points[j][1]);
+            uprintf("(");
+
+            if (j > 0 || !stage->ease_input) {
+                uprintf("%f", (double)stage->points[j][0]);
             }
+
+            uprintf(",");
+
+            if (j > 0 || !stage->ease_output) {
+                uprintf("%f", (double)stage->points[j][1]);
+            }
+
+            uprintf(");");
         }
 
         /* Actions */
 
         for (size_t j = 0; j < stage->sizes[1]; j++) {
             switch(stage->actions[j]) {
+            case BACK: uprintf("b"); break;
             case RESET_VOLUME: uprintf("v"); break;
             case RESET_TIME: uprintf("t"); break;
             case RESET_MASS: uprintf("m"); break;
